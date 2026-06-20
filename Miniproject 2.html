@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashcard Deck Creator</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:"Segoe UI",sans-serif;
+}
+
+body{
+    min-height:100vh;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    padding:20px;
+}
+
+.container{
+    max-width:1100px;
+    margin:auto;
+}
+
+h1{
+    text-align:center;
+    color:#fff;
+    margin-bottom:20px;
+}
+
+.card{
+    background:#fff;
+    border-radius:20px;
+    padding:20px;
+    margin-bottom:20px;
+    box-shadow:0 10px 25px rgba(0,0,0,.15);
+}
+
+.card h2{
+    margin-bottom:15px;
+    color:#333;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    margin-bottom:10px;
+    border:2px solid #ddd;
+    border-radius:10px;
+    outline:none;
+}
+
+input:focus{
+    border-color:#667eea;
+}
+
+.buttons{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+button{
+    border:none;
+    cursor:pointer;
+    padding:12px 18px;
+    border-radius:10px;
+    font-weight:600;
+    transition:.3s;
+}
+
+button:hover{
+    transform:translateY(-2px);
+}
+
+.primary{
+    background:#667eea;
+    color:white;
+}
+
+.success{
+    background:#28a745;
+    color:white;
+}
+
+.danger{
+    background:#dc3545;
+    color:white;
+}
+
+.deck-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+    gap:15px;
+}
+
+.deck-item{
+    background:#f7f8ff;
+    border-radius:15px;
+    padding:15px;
+}
+
+.deck-item h3{
+    margin-bottom:8px;
+}
+
+.deck-item p{
+    color:#666;
+}
+
+.deck-actions{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+}
+
+.study-section{
+    display:none;
+}
+
+.flashcard-wrapper{
+    perspective:1200px;
+    width:100%;
+    max-width:600px;
+    height:320px;
+    margin:20px auto;
+}
+
+.flashcard{
+    width:100%;
+    height:100%;
+    position:relative;
+    transform-style:preserve-3d;
+    transition:transform .8s;
+}
+
+.flashcard.flip{
+    transform:rotateY(180deg);
+}
+
+.side{
+    position:absolute;
+    width:100%;
+    height:100%;
+    border-radius:20px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    padding:25px;
+    font-size:28px;
+    font-weight:bold;
+    backface-visibility:hidden;
+}
+
+.front{
+    background:white;
+    color:#333;
+}
+
+.back{
+    background:#667eea;
+    color:white;
+    transform:rotateY(180deg);
+}
+
+.quiz-controls{
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.progress{
+    text-align:center;
+    font-size:18px;
+    font-weight:bold;
+    margin-top:10px;
+}
+
+.card-count{
+    margin-top:10px;
+    color:#28a745;
+    font-weight:bold;
+}
+
+@media(max-width:600px){
+    .side{
+        font-size:22px;
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <h1>📚 Flashcard Deck Creator</h1>
+
+    <div class="card">
+
+        <h2>Create Flashcard Deck</h2>
+
+        <input type="text" id="deckName" placeholder="Deck Name">
+
+        <input type="text" id="question" placeholder="Question">
+
+        <input type="text" id="answer" placeholder="Answer">
+
+        <div class="buttons">
+            <button class="primary" onclick="addCard()">
+                ➕ Add Card
+            </button>
+
+            <button class="success" onclick="saveDeck()">
+                💾 Save Deck
+            </button>
+        </div>
+
+        <div class="card-count" id="cardCount">
+            Cards Added: 0
+        </div>
+
+    </div>
+
+    <div class="card">
+
+        <h2>Your Decks</h2>
+
+        <div class="deck-grid" id="deckList"></div>
+
+    </div>
+
+    <div class="card study-section" id="studySection">
+
+        <h2 id="studyTitle">Study Mode</h2>
+
+        <div class="flashcard-wrapper">
+
+            <div class="flashcard" id="flashcard">
+
+                <div class="side front" id="questionText"></div>
+
+                <div class="side back" id="answerText"></div>
+
+            </div>
+
+        </div>
+
+        <div class="progress" id="progress"></div>
+
+        <div class="quiz-controls">
+
+            <button class="primary" onclick="previousCard()">
+                ⬅ Previous
+            </button>
+
+            <button class="success" onclick="flipCard()">
+                🔄 Flip Card
+            </button>
+
+            <button class="primary" onclick="nextCard()">
+                Next ➡
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+let tempCards = [];
+
+let decks =
+JSON.parse(localStorage.getItem("flashcardDecks")) || [];
+
+let currentDeck = [];
+let currentIndex = 0;
+
+function updateCount(){
+    document.getElementById("cardCount").textContent =
+    `Cards Added: ${tempCards.length}`;
+}
+
+function addCard(){
+
+    const question =
+    document.getElementById("question").value.trim();
+
+    const answer =
+    document.getElementById("answer").value.trim();
+
+    if(!question || !answer){
+        alert("Please enter a question and answer.");
+        return;
+    }
+
+    tempCards.push({
+        question,
+        answer
+    });
+
+    document.getElementById("question").value = "";
+    document.getElementById("answer").value = "";
+
+    updateCount();
+}
+
+function saveDeck(){
+
+    const deckName =
+    document.getElementById("deckName").value.trim();
+
+    if(!deckName){
+        alert("Enter a deck name.");
+        return;
+    }
+
+    if(tempCards.length === 0){
+        alert("Add at least one flashcard.");
+        return;
+    }
+
+    decks.push({
+        id:Date.now(),
+        name:deckName,
+        cards:[...tempCards]
+    });
+
+    localStorage.setItem(
+        "flashcardDecks",
+        JSON.stringify(decks)
+    );
+
+    tempCards = [];
+
+    document.getElementById("deckName").value = "";
+
+    updateCount();
+    renderDecks();
+
+    alert("Deck Saved!");
+}
+
+function renderDecks(){
+
+    const deckList =
+    document.getElementById("deckList");
+
+    if(decks.length === 0){
+        deckList.innerHTML =
+        "<p>No decks created yet.</p>";
+        return;
+    }
+
+    deckList.innerHTML = "";
+
+    decks.forEach(deck => {
+
+        deckList.innerHTML += `
+        <div class="deck-item">
+
+            <h3>${deck.name}</h3>
+
+            <p>${deck.cards.length} Cards</p>
+
+            <div class="deck-actions">
+
+                <button class="primary"
+                onclick="startStudy(${deck.id})">
+                Study
+                </button>
+
+                <button class="danger"
+                onclick="deleteDeck(${deck.id})">
+                Delete
+                </button>
+
+            </div>
+
+        </div>
+        `;
+    });
+}
+
+function deleteDeck(id){
+
+    if(!confirm("Delete this deck?")) return;
+
+    decks = decks.filter(
+        deck => deck.id !== id
+    );
+
+    localStorage.setItem(
+        "flashcardDecks",
+        JSON.stringify(decks)
+    );
+
+    renderDecks();
+}
+
+function startStudy(id){
+
+    const deck =
+    decks.find(d => d.id === id);
+
+    currentDeck = deck.cards;
+    currentIndex = 0;
+
+    document.getElementById("studyTitle")
+    .textContent = `📖 ${deck.name}`;
+
+    document.getElementById("studySection")
+    .style.display = "block";
+
+    showCard();
+}
+
+function showCard(){
+
+    const card =
+    currentDeck[currentIndex];
+
+    document.getElementById("questionText")
+    .textContent = card.question;
+
+    document.getElementById("answerText")
+    .textContent = card.answer;
+
+    document.getElementById("flashcard")
+    .classList.remove("flip");
+
+    document.getElementById("progress")
+    .textContent =
+    `Card ${currentIndex + 1} of ${currentDeck.length}`;
+}
+
+function flipCard(){
+    document.getElementById("flashcard")
+    .classList.toggle("flip");
+}
+
+function nextCard(){
+
+    if(currentIndex <
+       currentDeck.length - 1){
+
+        currentIndex++;
+        showCard();
+    }
+}
+
+function previousCard(){
+
+    if(currentIndex > 0){
+
+        currentIndex--;
+        showCard();
+    }
+}
+
+updateCount();
+renderDecks();
+
+</script>
+
+</body>
+</html>
